@@ -16,19 +16,30 @@ import NotFoundPage from './pages/NotFoundPage'
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   const { getMyProfile } = useProfile()
-  const [profile, setProfile] = useState<Profile | null | undefined>(undefined)
-  const [profileLoading, setProfileLoading] = useState(true)
+  const userId = user?.id ?? null
+  const [profileState, setProfileState] = useState<{
+    userId: string | null
+    profile: Profile | null
+  }>({ userId: null, profile: null })
 
   useEffect(() => {
-    if (!loading && user) {
-      getMyProfile().then(p => {
-        setProfile(p)
-        setProfileLoading(false)
-      })
-    } else if (!loading && !user) {
-      setProfileLoading(false)
+    if (loading || !userId || profileState.userId === userId) return
+
+    let cancelled = false
+
+    getMyProfile().then(profile => {
+      if (!cancelled) {
+        setProfileState({ userId, profile })
+      }
+    })
+
+    return () => {
+      cancelled = true
     }
-  }, [loading, user])
+  }, [getMyProfile, loading, profileState.userId, userId])
+
+  const profileLoading = loading || Boolean(userId && profileState.userId !== userId)
+  const profile = userId && profileState.userId === userId ? profileState.profile : null
 
   if (loading || profileLoading) {
     return <LoadingSpinner fullScreen message="Loading..." />
