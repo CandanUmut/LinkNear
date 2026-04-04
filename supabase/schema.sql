@@ -92,7 +92,7 @@ CREATE INDEX IF NOT EXISTS idx_profiles_last_seen
 -- CONNECTIONS
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS connections (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sender_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   receiver_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'pending'
@@ -118,7 +118,7 @@ CREATE INDEX IF NOT EXISTS idx_connections_accepted
 -- MESSAGES
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS messages (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   connection_id UUID NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
   sender_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   body TEXT NOT NULL CHECK (char_length(trim(body)) BETWEEN 1 AND 2000),
@@ -136,7 +136,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_unread
 -- BLOCKS
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS blocks (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   blocker_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   blocked_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   reason TEXT CHECK (reason IS NULL OR char_length(reason) <= 200),
@@ -159,7 +159,7 @@ $$ LANGUAGE sql STABLE;
 -- REPORTS
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS reports (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   reporter_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
   reported_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   category TEXT NOT NULL

@@ -19,7 +19,7 @@ INSERT INTO profiles (
   discovery_enabled, terms_accepted_at, onboarding_completed_at
 ) VALUES
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Alex Chen',
   'ML Engineer at DeepMind',
   'Building neural nets by day, hiking by weekend. Passionate about responsible AI.',
@@ -31,7 +31,7 @@ INSERT INTO profiles (
   true, now(), now()
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Sara Kim',
   'UX Designer & Researcher',
   'Human-centered design advocate. Previously at Airbnb.',
@@ -43,7 +43,7 @@ INSERT INTO profiles (
   true, now(), now()
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Marcus Johnson',
   'Full Stack Dev | React + Node',
   'Building products that matter. Open to side projects.',
@@ -55,7 +55,7 @@ INSERT INTO profiles (
   true, now(), now()
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Priya Patel',
   'Data Scientist @ Netflix',
   'Stats nerd, coffee lover. Looking to mentor juniors.',
@@ -67,7 +67,7 @@ INSERT INTO profiles (
   true, now(), now()
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Jordan Lee',
   'CS Student at SJSU',
   'Sophomore looking for study buddies and internship tips!',
@@ -79,7 +79,7 @@ INSERT INTO profiles (
   true, now(), now()
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Emily Torres',
   'Product Manager | B2B SaaS',
   'Bridging tech and business. Love building 0-to-1.',
@@ -91,7 +91,7 @@ INSERT INTO profiles (
   true, now(), now()
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Raj Mehta',
   'Firmware Engineer | IoT',
   'Embedded systems and automation. Building smart devices.',
@@ -103,7 +103,7 @@ INSERT INTO profiles (
   true, now(), now()
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Nadia Volkov',
   'DevRel & Open Source Advocate',
   'Making tech more accessible. Conference speaker.',
