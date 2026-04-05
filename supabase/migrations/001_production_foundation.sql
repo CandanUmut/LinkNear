@@ -685,12 +685,15 @@ BEGIN
   IF v_uid IS NULL THEN RAISE EXCEPTION 'not_authenticated'; END IF;
   IF p_limit > 100 THEN p_limit := 100; END IF;
 
+  -- Alias `connections` as `c` so column references don't collide with the
+  -- function's OUT parameters (`id`, `sender_id`), which would otherwise
+  -- raise `column reference "id" is ambiguous` in plpgsql.
   IF NOT EXISTS (
-    SELECT 1 FROM connections
-    WHERE id = p_connection_id
-      AND status = 'accepted'
-      AND v_uid IN (sender_id, receiver_id)
-      AND NOT is_blocked_between(sender_id, receiver_id)
+    SELECT 1 FROM connections c
+    WHERE c.id = p_connection_id
+      AND c.status = 'accepted'
+      AND v_uid IN (c.sender_id, c.receiver_id)
+      AND NOT is_blocked_between(c.sender_id, c.receiver_id)
   ) THEN
     RAISE EXCEPTION 'not_participant';
   END IF;
