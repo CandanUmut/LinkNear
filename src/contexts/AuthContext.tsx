@@ -1,14 +1,26 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import type { Profile } from '../types'
 
 interface AuthContextType {
   user: User | null
   session: Session | null
+  profile: Profile | null
   loading: boolean
+  profileLoading: boolean
   signInWithEmail: (email: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
+  reloadProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -42,6 +54,7 @@ async function ensureProfileRow(user: User): Promise<void> {
 
     bootstrappedProfileIds.add(user.id)
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to bootstrap profile row:', error)
   } finally {
     bootstrappingProfileIds.delete(user.id)
@@ -51,28 +64,71 @@ async function ensureProfileRow(user: User): Promise<void> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [profileLoading, setProfileLoading] = useState(false)
+  // Remember which user's profile we already loaded, so navigating between
+  // authed pages doesn't trigger a refetch (fixes spinner flicker).
+  const loadedForUserId = useRef<string | null>(null)
+
+  const fetchProfile = useCallback(async (uid: string): Promise<void> => {
+    setProfileLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', uid)
+        .maybeSingle()
+
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to load profile:', error.message)
+        setProfile(null)
+      } else {
+        setProfile(data as Profile | null)
+      }
+      loadedForUserId.current = uid
+    } finally {
+      setProfileLoading(false)
+    }
+  }, [])
+
+  const reloadProfile = useCallback(async () => {
+    if (user?.id) {
+      loadedForUserId.current = null // force refresh
+      await fetchProfile(user.id)
+    }
+  }, [user?.id, fetchProfile])
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session)
-        setUser(session?.user ?? null)
-        setLoading(false)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+      setUser(session?.user ?? null)
+      setLoading(false)
 
-        if (session?.user) {
-          // Supabase runs auth state listeners under its session lock.
-          // Defer profile bootstrap so we do not deadlock or hold the lock long enough
-          // for another request to steal it.
-          window.setTimeout(() => {
-            void ensureProfileRow(session.user)
-          }, 0)
-        }
+      if (session?.user) {
+        // Deferred so we don't hold the auth listener lock longer than needed.
+        window.setTimeout(() => {
+          void ensureProfileRow(session.user)
+        }, 0)
+      } else {
+        setProfile(null)
+        loadedForUserId.current = null
       }
-    )
+    })
 
     return () => subscription.unsubscribe()
   }, [])
+
+  // Load profile exactly once per signed-in user. Downstream reads come
+  // straight from context instead of hitting the DB on every navigation.
+  useEffect(() => {
+    if (!user) return
+    if (loadedForUserId.current === user.id) return
+    void fetchProfile(user.id)
+  }, [user, fetchProfile])
 
   const signInWithEmail = async (email: string) => {
     const { error } = await supabase.auth.signInWithOtp({
@@ -89,7 +145,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signInWithEmail, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        profile,
+        loading,
+        profileLoading,
+        signInWithEmail,
+        signOut,
+        reloadProfile,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )

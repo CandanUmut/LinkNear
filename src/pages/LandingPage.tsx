@@ -220,7 +220,13 @@ export default function LandingPage() {
             © 2026 LinkNear
           </span>
           <span className="font-pixel text-[10px] uppercase tracking-[0.12em] text-[var(--text-tertiary)] flex items-center gap-4">
-            <span>Hackathon 2026</span>
+            <a href="/privacy" className="hover:text-[var(--text-primary)] transition-colors">
+              Privacy
+            </a>
+            <span aria-hidden>·</span>
+            <a href="/terms" className="hover:text-[var(--text-primary)] transition-colors">
+              Terms
+            </a>
             <span aria-hidden>·</span>
             <a
               href="https://github.com/candanumut/linknear"

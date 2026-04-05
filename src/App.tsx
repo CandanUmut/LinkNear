@@ -1,8 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
 import { useAuth } from './contexts/AuthContext'
-import { useProfile } from './hooks/useProfile'
-import type { Profile } from './types'
 import Layout from './components/Layout'
 import LoadingSpinner from './components/LoadingSpinner'
 import LandingPage from './pages/LandingPage'
@@ -12,36 +9,19 @@ import ProfilePage from './pages/ProfilePage'
 import ConnectionsPage from './pages/ConnectionsPage'
 import SettingsPage from './pages/SettingsPage'
 import NotFoundPage from './pages/NotFoundPage'
+import ChatPage from './pages/ChatPage'
+import InboxPage from './pages/InboxPage'
+import BlockedUsersPage from './pages/BlockedUsersPage'
+import PrivacyPage from './pages/PrivacyPage'
+import TermsPage from './pages/TermsPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth()
-  const { getMyProfile } = useProfile()
-  const userId = user?.id ?? null
-  const [profileState, setProfileState] = useState<{
-    userId: string | null
-    profile: Profile | null
-  }>({ userId: null, profile: null })
+  const { user, loading, profile, profileLoading } = useAuth()
 
-  useEffect(() => {
-    if (loading || !userId || profileState.userId === userId) return
-
-    let cancelled = false
-
-    getMyProfile().then(profile => {
-      if (!cancelled) {
-        setProfileState({ userId, profile })
-      }
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [getMyProfile, loading, profileState.userId, userId])
-
-  const profileLoading = loading || Boolean(userId && profileState.userId !== userId)
-  const profile = userId && profileState.userId === userId ? profileState.profile : null
-
-  if (loading || profileLoading) {
+  // Wait for both the auth handshake AND the first profile load for this
+  // user. Once the profile is cached in AuthContext, subsequent navigations
+  // return instantly (no refetch, no flicker).
+  if (loading || (user && profileLoading && !profile)) {
     return <LoadingSpinner fullScreen message="Loading..." />
   }
 
@@ -49,8 +29,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/" replace />
   }
 
-  // If profile has no skills, redirect to onboarding
-  if (profile !== undefined && (!profile?.skills || profile.skills.length === 0)) {
+  // If the profile has no skills (fresh signup), force through onboarding.
+  if (!profile?.skills || profile.skills.length === 0) {
     return <Navigate to="/onboarding" replace />
   }
 
@@ -71,6 +51,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
         <Route
           path="/onboarding"
           element={
@@ -104,10 +86,34 @@ export default function App() {
           }
         />
         <Route
+          path="/messages"
+          element={
+            <ProtectedRoute>
+              <InboxPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/chat/:connectionId"
+          element={
+            <ProtectedRoute>
+              <ChatPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/settings"
           element={
             <ProtectedRoute>
               <SettingsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings/blocked"
+          element={
+            <ProtectedRoute>
+              <BlockedUsersPage />
             </ProtectedRoute>
           }
         />

@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from '../hooks/useProfile'
 import { useLocation } from '../hooks/useLocation'
 import TagInput from '../components/TagInput'
 import Avatar from '../components/Avatar'
 import LoadingSpinner from '../components/LoadingSpinner'
+import DeleteAccountModal from '../components/DeleteAccountModal'
+import { validateProfileUpdate } from '../lib/validation'
 
 const SKILL_SUGGESTIONS = [
   'Python', 'JavaScript', 'TypeScript', 'React', 'Node.js', 'Vue', 'Angular', 'Java', 'C++', 'Rust', 'Go',
@@ -55,7 +57,7 @@ const inputClass = "w-full bg-[var(--bg-primary)] border border-[var(--border-st
 
 export default function SettingsPage() {
   const { user, signOut } = useAuth()
-  const { getMyProfile, updateProfile, uploadAvatar } = useProfile()
+  const { getMyProfile, updateProfile, uploadAvatar, deleteAccount } = useProfile()
   const location = useLocation()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
@@ -63,6 +65,7 @@ export default function SettingsPage() {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
 
   const [form, setForm] = useState({
     full_name: '',
@@ -75,6 +78,7 @@ export default function SettingsPage() {
     latitude: null as number | null,
     longitude: null as number | null,
     location_name: '',
+    discovery_enabled: true,
   })
 
   useEffect(() => {
@@ -91,6 +95,7 @@ export default function SettingsPage() {
           latitude: p.latitude,
           longitude: p.longitude,
           location_name: p.location_name || '',
+          discovery_enabled: p.discovery_enabled ?? true,
         })
       }
       setLoading(false)
@@ -105,12 +110,37 @@ export default function SettingsPage() {
   }
 
   const handleSave = async () => {
+    // Client-side validation first — matches server CHECK constraints so
+    // errors surface inline instead of as raw DB messages.
+    const validation = validateProfileUpdate({
+      full_name: form.full_name,
+      headline: form.headline,
+      bio: form.bio,
+      skills: form.skills,
+      interests: form.interests,
+      looking_for: form.looking_for,
+      latitude: form.latitude,
+      longitude: form.longitude,
+      location_name: form.location_name,
+      discovery_enabled: form.discovery_enabled,
+    })
+    if (!validation.ok) {
+      const firstError = Object.values(validation.errors)[0]
+      setToast({ type: 'error', message: firstError })
+      return
+    }
+
     setSaving(true)
     setToast(null)
 
     let avatarUrl = form.avatar_url
     if (avatarFile) {
-      const url = await uploadAvatar(avatarFile)
+      const { url, error: uploadError } = await uploadAvatar(avatarFile)
+      if (uploadError) {
+        setSaving(false)
+        setToast({ type: 'error', message: uploadError })
+        return
+      }
       if (url) avatarUrl = url
     }
 
@@ -301,6 +331,33 @@ export default function SettingsPage() {
         )}
       </Section>
 
+      <Section label="Privacy">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={form.discovery_enabled}
+            onChange={e => setForm(f => ({ ...f, discovery_enabled: e.target.checked }))}
+            className="mt-1 w-4 h-4 accent-[var(--accent-primary)]"
+          />
+          <span className="flex-1">
+            <span className="block text-sm text-[var(--text-primary)]">Show me in discovery</span>
+            <span className="block text-xs text-[var(--text-tertiary)] mt-0.5">
+              When off, you are invisible to everyone — no one can find you nearby or see your
+              profile until you turn this back on.
+            </span>
+          </span>
+        </label>
+      </Section>
+
+      <Section label="Safety">
+        <Link
+          to="/settings/blocked"
+          className="text-sm text-[var(--accent-primary)] underline underline-offset-4 decoration-[var(--accent-primary)] hover:decoration-[2px] transition-all"
+        >
+          Manage blocked users →
+        </Link>
+      </Section>
+
       <div className="flex items-center justify-between mt-12 pt-8 border-t border-[var(--border-strong)]">
         <button
           onClick={handleSignOut}
@@ -316,6 +373,34 @@ export default function SettingsPage() {
           {saving ? 'Saving…' : 'Save changes →'}
         </button>
       </div>
+
+      <div className="mt-16 pt-8 border-t border-[var(--border-strong)]">
+        <p className="font-pixel text-[11px] uppercase tracking-[0.15em] text-[var(--danger)] mb-3">
+          Danger zone
+        </p>
+        <p className="text-sm text-[var(--text-secondary)] mb-4 max-w-lg">
+          Deleting your account hides your profile immediately, closes all your connections, and
+          permanently erases your data after 30 days.
+        </p>
+        <button
+          onClick={() => setDeleteModalOpen(true)}
+          className="text-sm text-[var(--danger)] underline underline-offset-4 decoration-[var(--danger)] hover:decoration-[2px] transition-all"
+        >
+          Delete my account →
+        </button>
+      </div>
+
+      <DeleteAccountModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={async () => {
+          const result = await deleteAccount()
+          if (!result.error) {
+            navigate('/', { replace: true })
+          }
+          return result
+        }}
+      />
     </div>
   )
 }

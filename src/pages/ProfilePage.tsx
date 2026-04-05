@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link, useLocation as useRouterLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useLocation } from '../hooks/useLocation'
-import type { ProfileWithDistance } from '../types'
+import { useModeration } from '../hooks/useModeration'
+import type { ProfileWithDistance, ReportCategory } from '../types'
 import Avatar from '../components/Avatar'
 import TagChip from '../components/TagChip'
 import ConnectionButton from '../components/ConnectionButton'
 import LoadingSpinner from '../components/LoadingSpinner'
+import BlockConfirmModal from '../components/BlockConfirmModal'
+import ReportModal from '../components/ReportModal'
 import { rpcWithRetry } from '../lib/rpcRetry'
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -41,6 +44,21 @@ export default function ProfilePage() {
   const routerLocation = useRouterLocation()
   const navState = routerLocation.state as { distance_km?: number } | null
   const fallbackDistance = navState?.distance_km ?? null
+  const { blockUser, reportUser } = useModeration()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [blockModalOpen, setBlockModalOpen] = useState(false)
+  const [reportModalOpen, setReportModalOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   const requestKey = id
     ? [id, location.latitude ?? 'none', location.longitude ?? 'none', fallbackDistance ?? 'none'].join(':')
@@ -125,12 +143,42 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-12">
-      <button
-        onClick={() => navigate(-1)}
-        className="text-sm text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors mb-10"
-      >
-        ← Back
-      </button>
+      <div className="flex items-center justify-between mb-10">
+        <button
+          onClick={() => navigate(-1)}
+          className="text-sm text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+        >
+          ← Back
+        </button>
+
+        {!isOwnProfile && (
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen(v => !v)}
+              aria-label="More actions"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-[var(--text-tertiary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] transition-colors"
+            >
+              ⋯
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-44 bg-[var(--bg-primary)] border border-[var(--border-strong)] rounded-[var(--radius-md)] overflow-hidden z-40">
+                <button
+                  onClick={() => { setMenuOpen(false); setReportModalOpen(true) }}
+                  className="w-full text-left px-4 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] hover:text-[var(--text-primary)] transition-colors"
+                >
+                  Report
+                </button>
+                <button
+                  onClick={() => { setMenuOpen(false); setBlockModalOpen(true) }}
+                  className="w-full text-left px-4 py-2.5 text-sm text-[var(--danger)] hover:bg-[var(--bg-surface)] transition-colors"
+                >
+                  Block
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Header — editorial masthead */}
       <header className="flex items-start gap-6 mb-10">
@@ -206,6 +254,26 @@ export default function ProfilePage() {
           </div>
         </section>
       )}
+
+      <BlockConfirmModal
+        isOpen={blockModalOpen}
+        onClose={() => setBlockModalOpen(false)}
+        targetName={profile.full_name}
+        onConfirm={async reason => {
+          const result = await blockUser(profile.id, reason)
+          if (!result.error) navigate('/discover')
+          return result
+        }}
+      />
+
+      <ReportModal
+        isOpen={reportModalOpen}
+        onClose={() => setReportModalOpen(false)}
+        targetName={profile.full_name}
+        onSubmit={async (category: ReportCategory, details: string) =>
+          reportUser(profile.id, category, details)
+        }
+      />
     </div>
   )
 }

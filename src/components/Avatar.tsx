@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react'
+
 interface AvatarProps {
   src?: string | null
   name: string
@@ -29,27 +31,36 @@ function getColorClass(name: string): string {
 }
 
 function getInitials(name: string): string {
-  const parts = name.trim().split(' ')
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
   if (parts.length === 1) return parts[0][0]?.toUpperCase() || '?'
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
+/**
+ * Round avatar with a deterministic color + initials fallback. If the image
+ * fails to load (404, CORS error, etc.), switches to the initials tile via
+ * an error state — previous implementation used `display: none` + a
+ * `nextElementSibling` that never actually rendered.
+ */
 export default function Avatar({ src, name, size = 'md' }: AvatarProps) {
   const sizeClass = SIZES[size]
   const colorClass = getColorClass(name)
   const initials = getInitials(name || '?')
+  const [hasError, setHasError] = useState(false)
 
-  if (src) {
+  // Reset error state when `src` changes so a new avatar gets a fresh load attempt.
+  useEffect(() => {
+    setHasError(false)
+  }, [src])
+
+  if (src && !hasError) {
     return (
       <img
         src={src}
         alt={name}
         className={`${sizeClass} rounded-full object-cover flex-shrink-0 ring-1 ring-[var(--border-strong)]`}
-        onError={(e) => {
-          const t = e.currentTarget
-          t.style.display = 'none'
-          t.nextElementSibling?.classList.remove('hidden')
-        }}
+        onError={() => setHasError(true)}
       />
     )
   }
@@ -57,6 +68,7 @@ export default function Avatar({ src, name, size = 'md' }: AvatarProps) {
   return (
     <div
       className={`${sizeClass} ${colorClass} rounded-full flex items-center justify-center flex-shrink-0 font-medium text-[var(--bg-primary)] ring-1 ring-[var(--border-strong)]`}
+      aria-label={name}
     >
       {initials}
     </div>

@@ -156,6 +156,22 @@ export default function OnboardingPage() {
     longitude: null as number | null,
     location_name: '',
   })
+  const [dob, setDob] = useState('')
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
+
+  // Age gate: parse DOB as a local date and require >= 13 years.
+  const ageOk = (() => {
+    if (!dob) return false
+    const d = new Date(dob)
+    if (Number.isNaN(d.getTime())) return false
+    const today = new Date()
+    const thirteenYearsAgo = new Date(
+      today.getFullYear() - 13,
+      today.getMonth(),
+      today.getDate()
+    )
+    return d <= thirteenYearsAgo
+  })()
 
   useEffect(() => {
     getMyProfile().then(p => {
@@ -211,7 +227,13 @@ export default function OnboardingPage() {
     return 'ML Engineer · Open Source · Building side projects'
   }, [form.skills])
 
-  const canSubmit = form.full_name.trim().length > 0 && form.skills.length >= 1
+  const hasLocation = !!(form.latitude && form.longitude) || !!manualCoords
+  const canSubmit =
+    form.full_name.trim().length > 0 &&
+    form.skills.length >= 1 &&
+    hasLocation &&
+    ageOk &&
+    acceptedTerms
 
   const handleSubmit = async () => {
     if (!canSubmit) return
@@ -219,7 +241,12 @@ export default function OnboardingPage() {
 
     let avatarUrl = form.avatar_url
     if (avatarFile) {
-      const url = await uploadAvatar(avatarFile)
+      const { url, error: uploadError } = await uploadAvatar(avatarFile)
+      if (uploadError) {
+        setSaving(false)
+        window.alert(uploadError)
+        return
+      }
       if (url) avatarUrl = url
     }
 
@@ -230,9 +257,17 @@ export default function OnboardingPage() {
       latitude: usingManual ? manualCoords!.lat : form.latitude,
       longitude: usingManual ? manualCoords!.lng : form.longitude,
       location_name: usingManual ? manualCity.trim() : form.location_name,
+      date_of_birth: dob,
+      terms_accepted_at: new Date().toISOString(),
+      onboarding_completed_at: new Date().toISOString(),
     }
 
-    await updateProfile(payload)
+    const { error: updateError } = await updateProfile(payload)
+    if (updateError) {
+      setSaving(false)
+      window.alert(updateError)
+      return
+    }
     navigate('/discover', { replace: true })
   }
 
@@ -400,6 +435,56 @@ export default function OnboardingPage() {
           </p>
         </Section>
 
+        <Section label="Age &amp; Terms">
+          <div>
+            <label className="block font-pixel text-[10px] uppercase tracking-[0.1em] text-[var(--text-tertiary)] mb-2">
+              Date of birth
+            </label>
+            <input
+              type="date"
+              value={dob}
+              onChange={e => setDob(e.target.value)}
+              max={new Date().toISOString().slice(0, 10)}
+              className="w-full bg-[var(--bg-primary)] border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3.5 py-2.5 text-[var(--text-primary)] text-sm focus:outline-none focus:border-[var(--accent-primary)] transition-colors"
+            />
+            {dob && !ageOk && (
+              <p className="text-xs text-[var(--danger)] mt-2">
+                You must be at least 13 years old to use LinkNear.
+              </p>
+            )}
+          </div>
+
+          <label className="flex items-start gap-3 cursor-pointer mt-4">
+            <input
+              type="checkbox"
+              checked={acceptedTerms}
+              onChange={e => setAcceptedTerms(e.target.checked)}
+              className="mt-1 w-4 h-4 accent-[var(--accent-primary)]"
+            />
+            <span className="text-sm text-[var(--text-secondary)] leading-relaxed">
+              I agree to the{' '}
+              <a
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--accent-primary)] underline underline-offset-4"
+              >
+                Terms of Service
+              </a>{' '}
+              and have read the{' '}
+              <a
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--accent-primary)] underline underline-offset-4"
+              >
+                Privacy Policy
+              </a>
+              .
+            </span>
+          </label>
+        </Section>
+
         <div className="flex items-center justify-end mt-12 pt-8 border-t border-[var(--border-strong)]">
           <button
             type="button"
@@ -407,7 +492,19 @@ export default function OnboardingPage() {
             disabled={!canSubmit}
             className="text-base text-[var(--accent-primary)] underline underline-offset-4 decoration-[var(--accent-primary)] hover:decoration-[2px] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >
-            {canSubmit ? 'Start discovering →' : 'Add your name and one skill to continue'}
+            {canSubmit
+              ? 'Start discovering →'
+              : !form.full_name.trim()
+              ? 'Add your name to continue'
+              : form.skills.length < 1
+              ? 'Add at least one skill'
+              : !hasLocation
+              ? 'Add your location'
+              : !ageOk
+              ? 'Enter a valid date of birth'
+              : !acceptedTerms
+              ? 'Accept the terms to continue'
+              : 'Start discovering →'}
           </button>
         </div>
       </div>

@@ -12,7 +12,14 @@ type Tab = 'received' | 'sent' | 'connected'
 
 export default function ConnectionsPage() {
   const { user } = useAuth()
-  const { connections, loading, getConnections, respondToConnection, cancelRequest } = useConnections()
+  const {
+    connections,
+    loading,
+    getConnections,
+    respondToConnection,
+    cancelRequest,
+    disconnect,
+  } = useConnections()
   const { connectionsVersion } = useRealtime()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<Tab>('received')
@@ -43,6 +50,17 @@ export default function ConnectionsPage() {
 
     try {
       await cancelRequest(conn.id)
+      await getConnections()
+    } finally {
+      setActingId(null)
+    }
+  }
+
+  const handleDisconnect = async (conn: Connection) => {
+    if (!window.confirm("Disconnect from this person? You won't be able to message each other anymore.")) return
+    setActingId(conn.id)
+    try {
+      await disconnect(conn.id)
       await getConnections()
     } finally {
       setActingId(null)
@@ -196,21 +214,34 @@ export default function ConnectionsPage() {
                   const other = conn.sender_id === user?.id ? conn.receiver : conn.sender
                   if (!other) return null
                   return (
-                    <li
-                      key={conn.id}
-                      onClick={() => navigate(`/profile/${other.id}`)}
-                      className="flex items-center gap-4 py-6 cursor-pointer group"
-                    >
-                      <Avatar src={other.avatar_url} name={other.full_name} size="md" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-display text-lg text-[var(--text-primary)] leading-tight group-hover:text-[var(--accent-primary)] transition-colors">
-                          {other.full_name}
-                        </p>
-                        <p className="text-sm text-[var(--text-tertiary)] truncate mt-0.5">{other.headline}</p>
+                    <li key={conn.id} className="flex items-center gap-4 py-6 group">
+                      <div
+                        onClick={() => navigate(`/profile/${other.id}`)}
+                        className="flex items-center gap-4 flex-1 min-w-0 cursor-pointer"
+                      >
+                        <Avatar src={other.avatar_url} name={other.full_name} size="md" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-display text-lg text-[var(--text-primary)] leading-tight group-hover:text-[var(--accent-primary)] transition-colors">
+                            {other.full_name}
+                          </p>
+                          <p className="text-sm text-[var(--text-tertiary)] truncate mt-0.5">{other.headline}</p>
+                        </div>
                       </div>
-                      <span className="font-pixel text-[10px] uppercase tracking-[0.1em] text-[var(--text-tertiary)] flex-shrink-0">
-                        · Connected
-                      </span>
+                      <div className="flex items-center gap-4 flex-shrink-0">
+                        <button
+                          onClick={() => navigate(`/chat/${conn.id}`)}
+                          className="text-sm text-[var(--accent-primary)] underline underline-offset-4 decoration-[var(--accent-primary)] hover:decoration-[2px] transition-all"
+                        >
+                          Message →
+                        </button>
+                        <button
+                          onClick={() => handleDisconnect(conn)}
+                          disabled={actingId === conn.id}
+                          className="text-xs text-[var(--text-tertiary)] hover:text-[var(--danger)] disabled:opacity-50 transition-colors"
+                        >
+                          {actingId === conn.id ? 'Working…' : 'Disconnect'}
+                        </button>
+                      </div>
                     </li>
                   )
                 })}
