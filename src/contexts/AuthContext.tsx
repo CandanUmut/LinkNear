@@ -10,6 +10,7 @@ import {
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { rpcWithRetry } from '../lib/rpcRetry'
 import type { Profile } from '../types'
 
 interface AuthContextType {
@@ -66,7 +67,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
-  const [profileLoading, setProfileLoading] = useState(false)
+  // Starts true. Any first render that observes `user` truthy must also
+  // observe `profileLoading` truthy so the ProtectedRoute guard can hold
+  // the spinner until fetchProfile settles. Cleared on sign-out and after
+  // each fetchProfile completes.
+  const [profileLoading, setProfileLoading] = useState(true)
   // Remember which user's profile we already loaded, so navigating between
   // authed pages doesn't trigger a refetch (fixes spinner flicker).
   const loadedForUserId = useRef<string | null>(null)
@@ -74,21 +79,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchProfile = useCallback(async (uid: string): Promise<void> => {
     setProfileLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', uid)
-        .maybeSingle()
-
-      if (error) {
-        // eslint-disable-next-line no-console
-        console.error('Failed to load profile:', error.message)
-        setProfile(null)
-      } else {
-        setProfile(data as Profile | null)
-      }
-      loadedForUserId.current = uid
+      // rpcWithRetry handles transient network failures (retry w/ backoff).
+      // Non-transient failures (auth, RLS, schema) throw after the first try.
+      const data = await rpcWithRetry<Profile | null>(() =>
+        supabase.from('profiles').select('*').eq('id', uid).maybeSingle()
+      )
+      setProfile(data)
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to load profile:', e instanceof Error ? e.message : e)
+      setProfile(null)
     } finally {
+      // Mark the fetch as attempted regardless of outcome so the effect below
+      // doesn't re-enter. If the profile ended up null due to an error the
+      // ProtectedRoute guard will route to /onboarding — a fresh sign-in will
+      // retry from scratch anyway.
+      loadedForUserId.current = uid
       setProfileLoading(false)
     }
   }, [])
@@ -109,12 +115,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false)
 
       if (session?.user) {
+        // IMPORTANT: flip profileLoading to true *synchronously* here, in the
+        // same batched update as setUser, so the very first render that sees
+        // `user` also sees `profileLoading=true`. Otherwise ProtectedRoute
+        // briefly observes `user && !profile && !profileLoading` and routes
+        // the user to /onboarding before fetchProfile has even started.
+        setProfileLoading(true)
         // Deferred so we don't hold the auth listener lock longer than needed.
         window.setTimeout(() => {
           void ensureProfileRow(session.user)
         }, 0)
       } else {
         setProfile(null)
+        setProfileLoading(false)
         loadedForUserId.current = null
       }
     })
