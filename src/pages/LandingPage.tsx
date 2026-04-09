@@ -10,12 +10,12 @@ const WHY_ITEMS = [
   {
     no: '01',
     title: 'No photos until you connect',
-    desc: 'Judge people by their character, skills, and values \u2014 not their appearance.',
+    desc: 'Judge people by their character, skills, and values — not their appearance.',
   },
   {
     no: '02',
     title: 'Local only',
-    desc: 'Your feed, your matches, your community \u2014 all within walking distance.',
+    desc: 'Your feed, your matches, your community — all within walking distance.',
   },
   {
     no: '03',
@@ -211,7 +211,7 @@ export default function LandingPage() {
                 disabled={signInLoading || sent || !email.trim()}
                 className="text-base text-[var(--accent-primary)] underline underline-offset-4 decoration-[var(--accent-primary)] hover:decoration-[2px] disabled:opacity-50 transition-all whitespace-nowrap px-2 text-left sm:self-center"
               >
-                {signInLoading ? 'Sending\u2026' : sent ? '\u00b7 Link sent' : 'Request access \u2192'}
+                {signInLoading ? 'Sending…' : sent ? '· Link sent' : 'Request access →'}
               </button>
             </form>
 
@@ -220,11 +220,11 @@ export default function LandingPage() {
               aria-live="polite"
             >
               {errorMsg ? (
-                <span className="text-[var(--danger)]">Err \u00b7 {errorMsg}</span>
+                <span className="text-[var(--danger)]">Err · {errorMsg}</span>
               ) : sent ? (
-                <>\u00b7 Check <strong className="text-[var(--text-primary)]">{email}</strong> for your sign-in link</>
+                <>· Check <strong className="text-[var(--text-primary)]">{email}</strong> for your sign-in link</>
               ) : (
-                <>\u00b7 No password. We email you a one-click link.</>
+                <>· No password. We email you a one-click link.</>
               )}
             </p>
           </div>
